@@ -325,17 +325,17 @@ Future work may include:
 ```text
 Stroke-Prediction-R-Project/
 ├── README.md
-├── H-G03-FINAL-PROJECT-1.rmd
+├── H-G03-FINAL-PROJECT.rmd
 ├── index.html
-└── H-G03-FINAL-PROJECT-1-with-graphs.ipynb
+└── Stroke Prediction R Project.ipynb
 ```
 
 | File | Description |
 |---|---|
 | `README.md` | Complete project overview and documentation |
-| `H-G03-FINAL-PROJECT-1.rmd` | Original R Markdown source code |
+| `H-G03-FINAL-PROJECT.rmd` | Original R Markdown source code |
 | `index.html` | Rendered report used by GitHub Pages |
-| `H-G03-FINAL-PROJECT-1-with-graphs.ipynb` | R Jupyter Notebook with code and 25 embedded graphs |
+| `Stroke Prediction R Project.ipynb` | R Jupyter Notebook with code and 25 embedded graphs |
 
 ## How to View the Project
 
@@ -351,7 +351,7 @@ The `index.html` file is the website entry page. Inside the GitHub repository, c
 
 ### Jupyter Notebook
 
-Open `H-G03-FINAL-PROJECT-1-with-graphs.ipynb` in GitHub to view the code and embedded graphs.
+Open `Stroke Prediction R Project.ipynb` in GitHub to view the code and embedded graphs.
 
 To execute the notebook locally, Jupyter Notebook and an R kernel such as IRkernel are required.
 
@@ -359,7 +359,7 @@ To execute the notebook locally, Jupyter Notebook and an R kernel such as IRkern
 
 1. Install R and RStudio.
 2. Download or clone this repository.
-3. Open `H-G03-FINAL-PROJECT-1.rmd` in RStudio.
+3. Open `H-G03-FINAL-PROJECT.rmd` in RStudio.
 4. Make sure the computer has an internet connection because the dataset is loaded from Google Drive.
 5. Click **Knit** to generate the HTML report.
 
@@ -374,7 +374,7 @@ cd Stroke-Prediction-R-Project
 
 ## Author
 
-**Group-3**
+**Md. Fuad Abdullah, Mashfika Tabassum Tisha, Nazat E Rose, Sumaiya Habiba**
 
 ## Disclaimer
 
