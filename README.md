@@ -1,1 +1,1 @@
-# Stroke-Prediction-R-Project
+# Stroke Prediction R Project
