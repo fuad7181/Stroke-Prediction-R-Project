@@ -1,0 +1,809 @@
+---
+title: "H-G03-FINAL-PROJECT"
+author: "Group-3"
+date: "2026-04-20"
+output: html_document
+---
+
+# 1. Installing and Loading Libraries
+
+First, we install and load the necessary libraries.
+
+```{r}
+packages <- c("readr", "ggplot2", "corrplot", "moments", "caret", "GGally", "rpart")
+
+for(p in packages){
+  if(!require(p, character.only = TRUE)){
+    install.packages(p)
+  }
+  library(p, character.only = TRUE)
+}
+
+set.seed(123)
+```
+
+# 2. Data Collection
+
+The dataset used in this project is a real-world stroke prediction dataset. It is used to predict whether a person may suffer from a stroke based on medical history, lifestyle, and demographic features.
+
+- **Task Type**: Classification  
+- **Target Variable**: stroke  
+- **Dataset Source Link**: <https://drive.google.com/uc?id=1PsCqVI9lfaZyrsc8JOhMzq5vzesBtDkh>  
+- **Description**: The dataset includes columns such as age, gender, hypertension, heart disease, marital status, work type, residence type, average glucose level, BMI, smoking status, and stroke.
+
+# 3. Loading Dataset
+
+Loading the dataset from the provided Google Drive URL and inspect the first few rows to understand its structure.
+
+```{r}
+
+url <- "https://drive.google.com/uc?id=1PsCqVI9lfaZyrsc8JOhMzq5vzesBtDkh"
+
+# Reading all possible variations of Not Available as NA
+dataset <- read_csv(
+  url,
+  na = c("", "NA", "N/A", "n/a", "na", "NULL", "null"),
+  show_col_types = FALSE
+)
+
+# Converting tibble to normal data frame for simple base R operations.
+dataset <- as.data.frame(dataset)
+
+# Viewing first rows
+head(dataset)
+```
+
+# 4. Cleaning Missing Value Format and Numerical Columns
+
+This section makes sure that numerical columns are actually numeric and text values like `N/A` in BMI are treated as missing values.
+
+```{r}
+
+dataset$bmi <- trimws(as.character(dataset$bmi))
+dataset$bmi[dataset$bmi %in% c("N/A", "NA", "n/a", "na", "NULL", "null", "")] <- NA
+
+# Converting important columns to numeric type.
+dataset$age <- suppressWarnings(as.numeric(as.character(dataset$age)))
+dataset$avg_glucose_level <- suppressWarnings(as.numeric(as.character(dataset$avg_glucose_level)))
+dataset$bmi <- suppressWarnings(as.numeric(dataset$bmi))
+dataset$stroke <- suppressWarnings(as.numeric(as.character(dataset$stroke)))
+
+cat("Missing BMI values before imputation:", sum(is.na(dataset$bmi)), "\n")
+```
+
+# 5. Dataset Shape and Structure
+
+Here we check the dimensions and structure of the dataset to understand its features better.
+
+```{r}
+# Dimensions
+dim(dataset)
+
+# Rows
+nrow(dataset)
+
+# Columns
+ncol(dataset)
+
+# Dataset structure
+str(dataset)
+```
+
+# 6. Identifying Numerical and Categorical Features
+
+We will now identify the numerical and categorical features in the dataset.
+
+```{r}
+numeric_cols <- dataset[, sapply(dataset, is.numeric), drop = FALSE]
+
+cat("Numerical Features:\n")
+print(names(numeric_cols))
+
+categorical_cols <- names(dataset)[sapply(dataset, function(x) is.character(x) | is.factor(x))]
+
+cat("\nCategorical Features:\n")
+print(categorical_cols)
+```
+
+# 7. Missing Values and Duplicate Checking
+
+```{r}
+# This checks how many missing values exist in every column before imputation.
+colSums(is.na(dataset))
+
+# This checks if any duplicate rows exist.
+sum(duplicated(dataset))
+```
+
+# 8. Basic Descriptive Statistics
+
+We compute basic summary statistics for numerical variables.
+
+```{r}
+# Summary of dataset
+summary(dataset)
+
+# Update numerical columns after conversion
+numeric_cols <- dataset[, sapply(dataset, is.numeric), drop = FALSE]
+
+# Mean
+colMeans(numeric_cols, na.rm = TRUE)
+
+# Median
+apply(numeric_cols, 2, median, na.rm = TRUE)
+
+# Standard deviation
+apply(numeric_cols, 2, sd, na.rm = TRUE)
+
+# Variance
+apply(numeric_cols, 2, var, na.rm = TRUE)
+
+# Minimum values
+apply(numeric_cols, 2, min, na.rm = TRUE)
+
+# Maximum values
+apply(numeric_cols, 2, max, na.rm = TRUE)
+
+# Quartiles
+apply(numeric_cols, 2, quantile, na.rm = TRUE)
+
+# Count non-missing values
+colSums(!is.na(dataset))
+```
+
+# 9. Correlation Matrix and Heatmap
+
+```{r}
+
+eda_numeric <- dataset[, c("age", "avg_glucose_level", "bmi", "stroke")]
+cor_matrix <- cor(eda_numeric, use = "complete.obs")
+print(cor_matrix)
+
+# Correlation Heatmap
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+# 10. Histograms for Relevant Numerical Variables
+
+```{r}
+
+# Age Histogram
+ggplot(dataset, aes(x = age)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  labs(title = "Age Distribution", x = "Age", y = "Frequency")
+
+# Glucose Histogram
+ggplot(dataset, aes(x = avg_glucose_level)) +
+  geom_histogram(bins = 30, fill = "lightgreen", color = "black") +
+  labs(title = "Glucose Distribution", x = "Glucose Level", y = "Frequency")
+
+# BMI Histogram
+# Missing BMI values are excluded only from this plot.
+ggplot(subset(dataset, !is.na(bmi)), aes(x = bmi)) +
+  geom_histogram(bins = 30, fill = "orange", color = "black") +
+  labs(title = "BMI Distribution", x = "BMI", y = "Frequency")
+```
+
+# 11. Frequency Tables and Bar Charts for Categorical Variables
+
+```{r}
+
+for(col in categorical_cols){
+  cat("\nFrequency of", col, ":\n")
+  print(table(dataset[[col]]))
+}
+
+# Gender Bar Chart
+ggplot(dataset, aes(x = gender)) +
+  geom_bar(fill = "purple") +
+  labs(title = "Gender Distribution", x = "Gender", y = "Count")
+
+# Work Type Bar Chart
+ggplot(dataset, aes(x = work_type)) +
+  geom_bar(fill = "lightblue") +
+  labs(title = "Work Type Distribution", x = "Work Type", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Smoking Status Bar Chart
+ggplot(dataset, aes(x = smoking_status)) +
+  geom_bar(fill = "lightgreen") +
+  labs(title = "Smoking Status Distribution", x = "Smoking Status", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Stroke Bar Chart
+ggplot(dataset, aes(x = factor(stroke))) +
+  geom_bar(fill = "red") +
+  labs(title = "Stroke Class Distribution", x = "Stroke", y = "Count")
+```
+
+# 12. Pair Plot
+
+```{r}
+
+pair_data <- dataset[, c("age", "bmi", "avg_glucose_level", "stroke")]
+pair_data$stroke <- factor(pair_data$stroke, levels = c(0, 1), labels = c("No Stroke", "Stroke"))
+pair_data <- na.omit(pair_data)
+
+# Creating a pair plot to visualize relationships between selected variables
+GGally::ggpairs(pair_data)
+```
+
+# 13. Core Data Analysis
+
+This section gives a short numerical summary of the target variable and key health-related variables.
+
+```{r}
+# Stroke count shows class balance or imbalance.
+stroke_count <- table(dataset$stroke)
+stroke_count
+
+# Stroke percentage shows how much of the dataset belongs to each class.
+prop.table(stroke_count) * 100
+
+# Comparing average age, BMI, and glucose level between stroke and non-stroke groups.
+aggregate(cbind(age, bmi, avg_glucose_level) ~ stroke,
+          data = dataset,
+          FUN = mean,
+          na.rm = TRUE)
+```
+
+# 14. Bivariate Analysis
+
+We generate bivariate visualizations for relationships between variables.
+
+```{r}
+# Age vs Glucose Scatter Plot with trend line
+ggplot(dataset, aes(x = age, y = avg_glucose_level)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Age vs Glucose Level", x = "Age", y = "Average Glucose Level")
+
+# Age vs Stroke Boxplot
+ggplot(dataset, aes(x = factor(stroke), y = age)) +
+  geom_boxplot(fill = "red") +
+  labs(title = "Age Distribution by Stroke", x = "Stroke", y = "Age")
+
+# BMI vs Stroke Boxplot
+ggplot(subset(dataset, !is.na(bmi)), aes(x = factor(stroke), y = bmi)) +
+  geom_boxplot(fill = "green") +
+  labs(title = "BMI Distribution by Stroke", x = "Stroke", y = "BMI")
+
+# Glucose vs Stroke Boxplot
+ggplot(dataset, aes(x = factor(stroke), y = avg_glucose_level)) +
+  geom_boxplot(fill = "yellow") +
+  labs(title = "Glucose Level by Stroke", x = "Stroke", y = "Glucose Level")
+```
+
+# 15. Categorical Analysis
+
+We explore stroke distribution across categorical features like gender, work type, and smoking status.
+
+```{r}
+# Stroke by Gender
+ggplot(dataset, aes(x = gender, fill = factor(stroke))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Stroke Cases by Gender", fill = "Stroke")
+
+# Stroke by Work Type
+ggplot(dataset, aes(x = work_type, fill = factor(stroke))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Stroke Cases by Work Type", fill = "Stroke") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Stroke by Smoking Status
+ggplot(dataset, aes(x = smoking_status, fill = factor(stroke))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Stroke Cases by Smoking Status", fill = "Stroke") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# 16. Pie Chart Visualization
+
+We generate pie charts to represent the distribution of gender and stroke.
+
+```{r}
+# Gender Pie Chart
+gender_counts <- table(dataset$gender)
+pie(gender_counts,
+    main = "Gender Distribution",
+    col = rainbow(length(gender_counts)))
+
+# Stroke Pie Chart
+stroke_counts <- table(dataset$stroke)
+pie(stroke_counts,
+    main = "Stroke Distribution",
+    col = c("lightblue", "red"))
+```
+
+# 17. Interpretations from EDA
+
+### Correlation Analysis
+The correlation heatmap shows the relationships among the selected numerical variables. Among the numerical variables, **age** shows an important positive relationship with the target variable **stroke**. This suggests that stroke cases are more common among older patients.
+
+### Distribution of Key Features
+The histogram for **age** shows the age distribution of patients. The **BMI** and **average glucose level** histograms show the spread of health-related numerical variables. These variables are useful for this project because they describe physical and medical conditions that may be connected with stroke risk.
+
+### Pair Plot and Bivariate Plots
+The pair plot and boxplots help compare age, BMI, and average glucose level between stroke and non-stroke cases. The stroke class distribution also shows that the dataset is imbalanced, because non-stroke cases are much higher than stroke cases. This imbalance is very important to remember when interpreting model accuracy, precision, recall, and F1-score.
+
+# 18. Data Preprocessing: Handling Missing Values
+
+```{r}
+# Rechecking missing values before preproceessing
+colSums(is.na(dataset))
+
+# Replacing missing BMI values with the median BMI because BMI has outliers.
+dataset$bmi[is.na(dataset$bmi)] <- median(dataset$bmi, na.rm = TRUE)
+
+# Checking missing values after handling.
+colSums(is.na(dataset))
+```
+
+# 19. Outlier Detection and Handling using IQR Method
+
+Detecting and handling outliers in BMI using the IQR method.
+
+```{r}
+Q1 <- quantile(dataset$bmi, 0.25, na.rm = TRUE)
+Q3 <- quantile(dataset$bmi, 0.75, na.rm = TRUE)
+
+IQR_value <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Values below lower bound are being replaced by lower bound, and values above upper bound are replaced by upper bound.
+dataset$bmi[dataset$bmi < lower_bound] <- lower_bound
+dataset$bmi[dataset$bmi > upper_bound] <- upper_bound
+```
+
+# 20. Feature Engineering
+
+```{r}
+# Creating Age Group
+dataset$age_group <- cut(dataset$age,
+                         breaks = c(-Inf, 30, 40, 50, 60, Inf),
+                         labels = c("Young", "Middle-Aged", "Older", "Senior", "Elder"))
+
+# Creating BMI Categories
+dataset$bmi_category <- cut(dataset$bmi,
+                            breaks = c(-Inf, 18.5, 24.9, 29.9, Inf),
+                            labels = c("Underweight", "Normal", "Overweight", "Obese"))
+
+head(dataset)
+```
+
+# 21. Skewness Checking
+
+```{r}
+# Checking skewness of important continuous variables.
+skewness_values <- apply(dataset[, c("age", "bmi", "avg_glucose_level")], 2, skewness, na.rm = TRUE)
+skewness_values
+
+# A log version of glucose is checked only for comparison.
+log_glucose_temp <- log(dataset$avg_glucose_level + 1)
+skewness(log_glucose_temp, na.rm = TRUE)
+```
+
+# 22. Mode Calculation
+
+We calculate the mode for categorical variables.
+
+```{r}
+# Updating categorical columns after creating age_group and bmi_category.
+categorical_cols <- names(dataset)[sapply(dataset, function(x) is.character(x) | is.factor(x))]
+
+mode_function <- function(x){
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+for(col in categorical_cols){
+  cat("\nMode of", col, ":\n")
+  print(mode_function(dataset[[col]]))
+}
+```
+
+# 23. Skewness of Numeric Variables
+
+We compute the skewness of the numerical variables.
+
+```{r}
+numeric_cols <- dataset[, sapply(dataset, is.numeric), drop = FALSE]
+apply(numeric_cols, 2, skewness, na.rm = TRUE)
+```
+
+# 24. Encoding Categorical Variables
+
+We encode categorical variables as numeric values so that they can be used by the classification model.
+
+```{r}
+# These columns are categorical, so we are converting them into numeric codes for modeling.
+dataset$gender <- as.numeric(as.factor(dataset$gender))
+dataset$ever_married <- as.numeric(as.factor(dataset$ever_married))
+dataset$work_type <- as.numeric(as.factor(dataset$work_type))
+dataset$Residence_type <- as.numeric(as.factor(dataset$Residence_type))
+dataset$smoking_status <- as.numeric(as.factor(dataset$smoking_status))
+
+# Encoding engineered categorical features too.
+dataset$age_group <- as.numeric(as.factor(dataset$age_group))
+dataset$bmi_category <- as.numeric(as.factor(dataset$bmi_category))
+
+numeric_cols <- dataset[, sapply(dataset, is.numeric), drop = FALSE]
+head(dataset)
+```
+
+# 25. Feature Selection
+
+We remove the id column as it does not contribute to prediction.
+
+```{r}
+dataset$id <- NULL
+
+head(dataset)
+```
+
+# 26. Correlation Analysis after Preprocessing
+
+We analyze the correlation matrix and correlate with the stroke variable.
+
+```{r}
+
+cor_matrix <- cor(dataset[, sapply(dataset, is.numeric)], use = "complete.obs")
+print(cor_matrix)
+
+# Correlation with stroke variable
+cor_matrix["stroke", ]
+
+# Correlation Heatmap
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         tl.col = "black",
+         tl.srt = 45)
+```
+
+# 27. Train-Test Split
+
+We split the dataset into training and testing sets. The training set is used to train the model, and the testing set is used to evaluate the model.
+
+```{r}
+# Converting target variable into factor for classification evaluation.
+dataset$stroke <- factor(dataset$stroke,
+                         levels = c(0, 1),
+                         labels = c("No_Stroke", "Stroke"))
+
+# 80% data is used for training and 20% data is used for testing.
+train_index <- createDataPartition(dataset$stroke, p = 0.80, list = FALSE)
+
+train_data <- dataset[train_index, ]
+test_data <- dataset[-train_index, ]
+
+# Check training and testing data size
+dim(train_data)
+dim(test_data)
+```
+
+# 28. Data Scaling
+
+We scale only the numerical predictor variables. The target variable is not scaled.
+
+```{r}
+# Scaling is done after train-test split to avoid data leakage.
+numeric_predictors <- names(train_data)[sapply(train_data, is.numeric)]
+
+preprocess_values <- preProcess(train_data[, numeric_predictors], method = c("center", "scale"))
+
+train_data[, numeric_predictors] <- predict(preprocess_values, train_data[, numeric_predictors])
+test_data[, numeric_predictors] <- predict(preprocess_values, test_data[, numeric_predictors])
+
+head(train_data)
+```
+
+# 29. Model Building: Logistic Regression
+
+Logistic Regression is used because the target variable has two classes: Stroke and No Stroke.
+
+```{r}
+logistic_model <- glm(stroke ~ ., data = train_data, family = binomial)
+
+summary(logistic_model)
+```
+
+# 30. Prediction on Test Data
+
+Now we test the model using the testing dataset.
+
+```{r}
+# Predicting probabilities for the test data.
+predicted_prob <- predict(logistic_model, newdata = test_data, type = "response")
+
+# Converting probabilities into class labels using the standard 0.5 threshold.
+threshold <- 0.5
+predicted_class <- ifelse(predicted_prob >= threshold, "Stroke", "No_Stroke")
+predicted_class <- factor(predicted_class, levels = c("No_Stroke", "Stroke"))
+
+# Showing first few predicted classes
+head(predicted_class)
+```
+
+# 31. Model Evaluation
+
+For classification, we evaluate the model using Accuracy, Precision, Recall, and F1-score.
+
+```{r}
+# Confusion matrix compares actual values with predicted values.
+conf_matrix <- confusionMatrix(predicted_class, test_data$stroke, positive = "Stroke")
+conf_matrix
+
+# Accuracy
+accuracy <- conf_matrix$overall["Accuracy"]
+
+# Precision and Recall
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+
+# If precision or recall becomes NA due to class imbalance, we are replacing it with 0.
+if(is.na(precision)) precision <- 0
+if(is.na(recall)) recall <- 0
+
+# F1-score
+if((precision + recall) == 0){
+  f1_score <- 0
+} else {
+  f1_score <- 2 * ((precision * recall) / (precision + recall))
+}
+
+# Final metric table for Logistic Regression
+evaluation_results <- data.frame(
+  Model = "Logistic Regression",
+  Accuracy = as.numeric(accuracy),
+  Precision = as.numeric(precision),
+  Recall = as.numeric(recall),
+  F1_Score = as.numeric(f1_score)
+)
+
+evaluation_results
+```
+
+# 32. Logistic Regression with Lower Threshold
+
+Logistic Regression usually uses a 0.50 threshold. Because the dataset is imbalanced, we also test a lower 0.30 threshold to make the model more sensitive to the Stroke class.
+
+```{r}
+# The predicted_prob values come from the same Logistic Regression model.
+# Here, we use a lower threshold of 0.30 instead of 0.50.
+threshold_030 <- 0.30
+predicted_class_030 <- ifelse(predicted_prob >= threshold_030, "Stroke", "No_Stroke")
+predicted_class_030 <- factor(predicted_class_030, levels = c("No_Stroke", "Stroke"))
+
+# Showing first few predicted classes using 0.30 threshold
+head(predicted_class_030)
+
+# Confusion matrix for Logistic Regression using 0.30 threshold.
+conf_matrix_030 <- confusionMatrix(predicted_class_030, test_data$stroke, positive = "Stroke")
+conf_matrix_030
+
+# Accuracy
+accuracy_030 <- conf_matrix_030$overall["Accuracy"]
+
+# Precision and Recall
+precision_030 <- conf_matrix_030$byClass["Precision"]
+recall_030 <- conf_matrix_030$byClass["Recall"]
+
+if(is.na(precision_030)) precision_030 <- 0
+if(is.na(recall_030)) recall_030 <- 0
+
+# F1-score
+if((precision_030 + recall_030) == 0){
+  f1_score_030 <- 0
+} else {
+  f1_score_030 <- 2 * ((precision_030 * recall_030) / (precision_030 + recall_030))
+}
+
+# Final metric table for Logistic Regression with 0.30 threshold
+evaluation_results_030 <- data.frame(
+  Model = "Logistic Regression 0.30 Threshold",
+  Accuracy = as.numeric(accuracy_030),
+  Precision = as.numeric(precision_030),
+  Recall = as.numeric(recall_030),
+  F1_Score = as.numeric(f1_score_030)
+)
+
+evaluation_results_030
+```
+
+# 33. Model Interpretation
+
+```{r}
+# Coefficients show the direction and strength of each variable in the Logistic Regression model.
+model_coefficients <- summary(logistic_model)$coefficients
+model_coefficients
+```
+
+The model performance is interpreted using the confusion matrix and the evaluation metrics. Accuracy shows the overall correct predictions. Precision shows how many predicted stroke cases were actually stroke cases. Recall shows how many actual stroke cases were correctly detected. F1-score combines precision and recall into one balanced score. The 0.30 threshold is also checked because the standard 0.50 threshold is failing to detect the minority Stroke class in an imbalanced dataset.
+
+# 34. Model Building: Decision Tree
+
+A Decision Tree model is added as a second classification model. Decision Tree is useful because it can capture rule-based and non-linear relationships among variables. The tree uses pre-pruning controls such as maximum depth and minimum samples to reduce overfitting.
+
+```{r}
+# Decision Tree is another suitable model for classification problems.
+# Pre-pruning controls help prevent the tree from becoming too complex.
+decision_tree_model <- rpart(
+  stroke ~ .,
+  data = train_data,
+  method = "class",
+  control = rpart.control(cp = 0.001, minsplit = 10, minbucket = 5, maxdepth = 5)
+)
+
+# Showing the decision tree model summary
+decision_tree_model
+
+# We are plotting the decision tree only if the model actually created splits.
+if (any(decision_tree_model$frame$var != "<leaf>")) {
+  plot(decision_tree_model, uniform = TRUE, margin = 0.1)
+  text(decision_tree_model, use.n = TRUE, cex = 0.7)
+} else {
+  cat("The Decision Tree did not create any split. It remained only a root node.
+")
+}
+```
+
+# 35. Decision Tree Prediction and Evaluation
+
+Now we test the Decision Tree model using the same testing dataset.
+
+```{r}
+# Predict classes for the test data using Decision Tree.
+dt_predicted_class <- predict(decision_tree_model,
+                              newdata = test_data,
+                              type = "class")
+
+# Making sure predicted class levels match the actual target levels.
+dt_predicted_class <- factor(dt_predicted_class, levels = c("No_Stroke", "Stroke"))
+
+# Showing first few predicted classes
+head(dt_predicted_class)
+
+# Confusion matrix for Decision Tree.
+dt_conf_matrix <- confusionMatrix(dt_predicted_class, test_data$stroke, positive = "Stroke")
+dt_conf_matrix
+
+# Accuracy
+dt_accuracy <- dt_conf_matrix$overall["Accuracy"]
+
+# Precision and Recall
+dt_precision <- dt_conf_matrix$byClass["Precision"]
+dt_recall <- dt_conf_matrix$byClass["Recall"]
+
+
+if(is.na(dt_precision)) dt_precision <- 0
+if(is.na(dt_recall)) dt_recall <- 0
+
+# F1-score
+if((dt_precision + dt_recall) == 0){
+  dt_f1_score <- 0
+} else {
+  dt_f1_score <- 2 * ((dt_precision * dt_recall) / (dt_precision + dt_recall))
+}
+
+# Final metric table for Decision Tree
+dt_evaluation_results <- data.frame(
+  Model = "Decision Tree",
+  Accuracy = as.numeric(dt_accuracy),
+  Precision = as.numeric(dt_precision),
+  Recall = as.numeric(dt_recall),
+  F1_Score = as.numeric(dt_f1_score)
+)
+
+dt_evaluation_results
+```
+
+# 36. Comparison of Logistic Regression and Decision Tree
+
+This section compares Logistic Regression with the standard 0.50 threshold, Logistic Regression with a lower 0.30 threshold, and Decision Tree using the same evaluation metrics: Accuracy, Precision, Recall, and F1-score.
+
+```{r}
+# Renaming the first Logistic Regression
+evaluation_results$Model <- "Logistic Regression 0.50 Threshold"
+
+# Combining all model results into one comparison table.
+model_comparison <- rbind(evaluation_results, evaluation_results_030, dt_evaluation_results)
+
+# Print comparison table
+model_comparison
+
+# Bar plot for visual comparison of the models.
+comparison_long <- data.frame(
+  Model = rep(model_comparison$Model, times = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1_Score"), each = nrow(model_comparison)),
+  Value = c(model_comparison$Accuracy,
+            model_comparison$Precision,
+            model_comparison$Recall,
+            model_comparison$F1_Score)
+)
+
+ggplot(comparison_long, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Model Comparison: Logistic Regression Thresholds and Decision Tree",
+       x = "Evaluation Metric",
+       y = "Score") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The comparison table shows how the models perform on the same test data. Accuracy shows overall correctness, while Precision, Recall, and F1-score are more important for understanding how well the model detects the minority class, Stroke. In an imbalanced dataset such as this one, the standard 0.50 threshold gave high accuracy but failed to detect Stroke cases. The lower 0.30 threshold is checked to see whether recall and F1-score improve and it showed improved results.
+
+
+## 37.1 Confusion Matrix Heatmaps
+
+```{r fig.width=7, fig.height=5}
+# This function converts a confusion matrix into a heatmap.
+plot_confusion_heatmap <- function(conf_object, model_name){
+  cm_table <- as.data.frame(conf_object$table)
+  colnames(cm_table) <- c("Prediction", "Actual", "Count")
+  
+  ggplot(cm_table, aes(x = Actual, y = Prediction, fill = Count)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = Count), size = 5) +
+    scale_fill_gradient(low = "white", high = "steelblue") +
+    labs(title = paste("Confusion Matrix Heatmap:", model_name),
+         x = "Actual Class",
+         y = "Predicted Class") +
+    theme_minimal()
+}
+
+# plotting Confusion matrix heatmap for Logistic Regression with 0.50 threshold.
+plot_confusion_heatmap(conf_matrix, "Logistic Regression 0.50 Threshold")
+```
+
+```{r fig.width=7, fig.height=5}
+# Confusion matrix heatmap for Logistic Regression with 0.30 threshold.
+plot_confusion_heatmap(conf_matrix_030, "Logistic Regression 0.30 Threshold")
+```
+
+```{r fig.width=7, fig.height=5}
+# Confusion matrix heatmap for Decision Tree.
+plot_confusion_heatmap(dt_conf_matrix, "Decision Tree")
+```
+
+The heatmaps make the confusion matrix easier to understand visually. The diagonal cells show correct predictions, while the off-diagonal cells show incorrect predictions.
+
+## 37.2 Improved Model Comparison Visualization
+
+```{r fig.width=9, fig.height=5}
+# Converting the model comparison table into long format for better visualization.
+comparison_visual <- data.frame(
+  Model = rep(model_comparison$Model, each = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1-Score"), times = nrow(model_comparison)),
+  Score = as.vector(t(model_comparison[, c("Accuracy", "Precision", "Recall", "F1_Score")]))
+)
+
+# Bar chart comparing all models across all evaluation metrics.
+ggplot(comparison_visual, aes(x = Model, y = Score, fill = Metric)) +
+  geom_col(position = "dodge", color = "black") +
+  geom_text(aes(label = round(Score, 3)),
+            position = position_dodge(width = 0.9),
+            vjust = -0.3,
+            size = 3) +
+  labs(title = "Creative Visual Comparison of Model Performance",
+       x = "Model",
+       y = "Score") +
+  coord_cartesian(ylim = c(0, 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
+This visualization compares the models more clearly than a table alone. It shows that accuracy may be high, but precision, recall, and F1-score are more useful for judging how well the models detect the minority **Stroke** class.
+
+
+# 38. Final Insights and Conclusion
+
+The dataset was successfully loaded from google drive, but it was previously downloaded from Kaggle. The dataset was then explored, cleaned, preprocessed, and used for classification modeling. The EDA showed that age, BMI, and average glucose level are useful health-related variables for understanding stroke risk. Missing BMI values were handled using median imputation, and BMI outliers were handled using the IQR method.
+
+The target variable was imbalanced because the number of non-stroke cases was much higher than the number of stroke cases. Because of this imbalance, accuracy alone may not be enough to judge the model. Therefore, precision, recall, and F1-score were also calculated.
+
+Two classification models were built and tested using the same 80-20 train-test split: Logistic Regression and Decision Tree. Logistic Regression was used as the main baseline model because it is suitable for binary classification. The standard Logistic Regression threshold of 0.50 was tested first. Then a lower threshold of 0.30 was also tested to make the model more sensitive to the minority Stroke class. Decision Tree was added as a second model because it can capture rule-based and non-linear relationships.
+
+The comparison table helps show that high accuracy can be misleading in an imbalanced classification problem. For stroke prediction, recall and F1-score are especially important because the goal is to correctly identify actual Stroke cases. Overall, the project is following the complete data science lifecycle: data collection, exploration, preprocessing, modeling, evaluation, model comparison, and interpretation.
